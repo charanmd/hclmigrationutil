@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>WCM Libraries and Content</title>
+    <link rel="stylesheet" type="text/css" href="styles.css"> <!-- Link to CSS file -->
     <script src="wcm-app.js"></script> <!-- Include the JavaScript file -->
 </head>
 <body>
@@ -10,6 +11,7 @@
 
 <!-- Section to Select Libraries -->
 <h2>Select a Library</h2>
+<div id="loading" class="loading" style="display:none;">Loading...</div> <!-- Loading message -->
 <select id="librarySelect" onchange="loadDocumentTypes()">
     <option value="">Select a library...</option>
 </select>
