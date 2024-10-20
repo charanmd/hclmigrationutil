@@ -20,6 +20,8 @@ function loadLibraries() {
 // Fetch document types when a library is selected
 function loadDocumentTypes() {
     let library = document.getElementById('librarySelect').value;
+    if (!library) return;
+    
     fetch(`/WCMServlet?action=selectDocumentType&library=${library}`)
         .then(response => response.json())
         .then(data => {
@@ -39,6 +41,8 @@ function loadDocumentTypes() {
 // Fetch items when a document type is selected
 function loadItems() {
     let documentType = document.getElementById('docTypeSelect').value;
+    if (!documentType) return;
+
     fetch(`/WCMServlet?action=selectItems&documentType=${documentType}`)
         .then(response => response.json())
         .then(data => {
@@ -59,6 +63,8 @@ function loadItems() {
 function loadItemMetadata() {
     let itemName = document.getElementById('itemSelect').value;
     let documentType = document.getElementById('docTypeSelect').value;
+    if (!itemName || !documentType) return;
+
     fetch(`/WCMServlet?action=viewItemMetadata&itemName=${itemName}&documentType=${documentType}`)
         .then(response => response.json())
         .then(data => {

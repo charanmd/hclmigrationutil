@@ -1,18 +1,20 @@
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
 <html>
 <head>
-    <title>Select a Library</title>
-    <script src="wcm-app.js"></script>
+    <title>WCM Libraries and Content</title>
+    <script src="wcm-app.js"></script> <!-- Include the JavaScript file -->
 </head>
 <body>
 
-<h1>Select a Library</h1>
+<h1>WCM Content Management</h1>
 
-<!-- Library Selection Dropdown -->
+<!-- Section to Select Libraries -->
+<h2>Select a Library</h2>
 <select id="librarySelect" onchange="loadDocumentTypes()">
     <option value="">Select a library...</option>
 </select>
 
-<!-- Section for selecting document types, initially hidden -->
+<!-- Section to Select Document Types (Initially hidden) -->
 <div id="documentTypeSection" style="display:none;">
     <h2>Select a Document Type</h2>
     <select id="docTypeSelect" onchange="loadItems()">
@@ -20,7 +22,7 @@
     </select>
 </div>
 
-<!-- Section for selecting items, initially hidden -->
+<!-- Section to Select Items (Initially hidden) -->
 <div id="itemSection" style="display:none;">
     <h2>Select an Item</h2>
     <select id="itemSelect" onchange="loadItemMetadata()">
@@ -28,7 +30,7 @@
     </select>
 </div>
 
-<!-- Section for displaying metadata, initially hidden -->
+<!-- Section to Display Metadata (Initially hidden) -->
 <div id="metadataSection" style="display:none;">
     <h2>Item Metadata</h2>
     <div id="metadata"></div>
