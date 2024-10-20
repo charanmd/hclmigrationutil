@@ -1,0 +1,63 @@
+function loadLibraries() {
+    fetch('/WCMServlet?action=selectLibrary')
+        .then(response => response.json())
+        .then(data => {
+            let librarySelect = document.getElementById('librarySelect');
+            data.forEach(library => {
+                let option = document.createElement('option');
+                option.value = library;
+                option.text = library;
+                librarySelect.add(option);
+            });
+        })
+        .catch(error => console.error('Error fetching libraries:', error));
+}
+
+function loadDocumentTypes() {
+    let library = document.getElementById('librarySelect').value;
+    fetch(`/WCMServlet?action=selectDocumentType&library=${library}`)
+        .then(response => response.json())
+        .then(data => {
+            let docTypeSelect = document.getElementById('docTypeSelect');
+            data.forEach(docType => {
+                let option = document.createElement('option');
+                option.value = docType;
+                option.text = docType;
+                docTypeSelect.add(option);
+            });
+        })
+        .catch(error => console.error('Error fetching document types:', error));
+}
+
+function loadItems() {
+    let documentType = document.getElementById('docTypeSelect').value;
+    fetch(`/WCMServlet?action=selectItems&documentType=${documentType}`)
+        .then(response => response.json())
+        .then(data => {
+            let itemSelect = document.getElementById('itemSelect');
+            data.forEach(item => {
+                let option = document.createElement('option');
+                option.value = item;
+                option.text = item;
+                itemSelect.add(option);
+            });
+        })
+        .catch(error => console.error('Error fetching items:', error));
+}
+
+function loadItemMetadata() {
+    let itemName = document.getElementById('itemSelect').value;
+    let documentType = document.getElementById('docTypeSelect').value;
+    fetch(`/WCMServlet?action=viewItemMetadata&itemName=${itemName}&documentType=${documentType}`)
+        .then(response => response.json())
+        .then(data => {
+            let metadataDiv = document.getElementById('metadata');
+            metadataDiv.innerHTML = '';
+            for (let key in data) {
+                let p = document.createElement('p');
+                p.textContent = `${key}: ${data[key]}`;
+                metadataDiv.appendChild(p);
+            }
+        })
+        .catch(error => console.error('Error fetching metadata:', error));
+}
