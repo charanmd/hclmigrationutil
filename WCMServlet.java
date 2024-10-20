@@ -28,20 +28,25 @@ public class WCMServlet extends HttpServlet {
                 String selectedLibrary = req.getParameter("library");
                 wcmService.setCurrentLibrary(selectedLibrary);
 
-                List<String> documentTypes = wcmService.getDocumentTypes();
-                JSONArray jsonArray = new JSONArray(documentTypes);
+                // Fetch document type names (string constants)
+                List<String> documentTypeNames = wcmService.getDocumentTypeNames();
+                JSONArray jsonArray = new JSONArray(documentTypeNames);
                 resp.getWriter().write(jsonArray.toString());
 
             } else if (action.equals("selectItems")) {
-                String documentType = req.getParameter("documentType");
-                List<String> items = wcmService.getItemsByDocumentType(documentType);
+                String documentTypeName = req.getParameter("documentType");
+                
+                // Fetch items by document type (mapping the string to actual DocumentType)
+                List<String> items = wcmService.getItemsByDocumentType(documentTypeName);
                 JSONArray jsonArray = new JSONArray(items);
                 resp.getWriter().write(jsonArray.toString());
 
             } else if (action.equals("viewItemMetadata")) {
                 String itemName = req.getParameter("itemName");
-                String documentType = req.getParameter("documentType");
-                Map<String, String> metadata = wcmService.getItemMetadata(itemName, documentType);
+                String documentTypeName = req.getParameter("documentType");
+
+                // Fetch metadata by item name and document type
+                Map<String, String> metadata = wcmService.getItemMetadata(itemName, documentTypeName);
                 JSONObject jsonObject = new JSONObject(metadata);
                 resp.getWriter().write(jsonObject.toString());
             }
