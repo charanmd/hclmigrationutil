@@ -109,3 +109,42 @@ function loadItemMetadata() {
             hideLoading(); // Hide loading message on error
         });
 }
+
+
+(function() {
+    // Function to detect user's location (mock example here; use a geo-location service in production)
+    function getUserLocation() {
+        // For demonstration, return "colorado" or "georgia" based on a mock IP or location API
+        // Replace with an actual geo-location API service for a real implementation
+        return "colorado"; // Mocked location
+    }
+
+    // Load the appropriate fragment based on location
+    function loadExperienceFragment() {
+        var location = getUserLocation();
+        var fragmentPath;
+
+        switch(location) {
+            case "colorado":
+                fragmentPath = "/content/experience-fragments/hrc/benefits/benefits-xf-colorado";
+                break;
+            case "georgia":
+                fragmentPath = "/content/experience-fragments/hrc/benefits/benefits-xf-georgia";
+                break;
+            default:
+                fragmentPath = "/content/experience-fragments/hrc/benefits/benefits-xf-all";
+        }
+
+        // AJAX request to load the selected experience fragment
+        fetch(fragmentPath + ".html")
+            .then(response => response.text())
+            .then(html => {
+                document.getElementById("personalized-content").innerHTML = html;
+            })
+            .catch(error => console.error("Failed to load experience fragment:", error));
+    }
+
+    // Run personalization logic on page load
+    document.addEventListener("DOMContentLoaded", loadExperienceFragment);
+})();
+
