@@ -1,0 +1,130 @@
+package com.yourproject.core.models;
+
+import com.adobe.cq.wcm.core.components.models.Component;
+import org.apache.sling.api.resource.Resource;
+import org.apache.sling.models.annotations.DefaultInjectionStrategy;
+import org.apache.sling.models.annotations.Model;
+import org.apache.sling.models.annotations.injectorspecific.ChildResource;
+import org.apache.sling.models.annotations.injectorspecific.InjectionStrategy;
+import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+
+import javax.inject.Inject;
+import java.util.ArrayList;
+import java.util.List;
+
+@Model(
+    adaptables = Resource.class,
+    adapters = { Component.class },
+    defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL
+)
+public class MultiRTEAudienceModel {
+
+    // Represent a single RTE-Audience entry
+    public static class RTEAudienceEntry {
+        private final String rteText;
+        private final String audienceTag;
+
+        public RTEAudienceEntry(String rteText, String audienceTag) {
+            this.rteText = rteText;
+            this.audienceTag = audienceTag;
+        }
+
+        public String getRteText() {
+            return rteText;
+        }
+
+        public String getAudienceTag() {
+            return audienceTag;
+        }
+    }
+
+    // List of RTEAudienceEntry items from the multifield
+    @ChildResource(name = "multiFieldContainer", injectionStrategy = InjectionStrategy.OPTIONAL)
+    private Resource multiFieldContainer;
+
+    public List<RTEAudienceEntry> getRTEAudienceEntries() {
+        List<RTEAudienceEntry> entries = new ArrayList<>();
+        if (multiFieldContainer != null) {
+            for (Resource item : multiFieldContainer.getChildren()) {
+                String rteText = item.getValueMap().get("rteText", String.class);
+                String audienceTag = item.getValueMap().get("audienceTag", String.class);
+                entries.add(new RTEAudienceEntry(rteText, audienceTag));
+            }
+        }
+        return entries;
+    }
+}
+
+
+
+          <jcr:root
+    xmlns:sling="http://sling.apache.org/jcr/sling/1.0"
+    xmlns:jcr="http://www.jcp.org/jcr/1.0"
+    jcr:primaryType="cq:Dialog"
+    xtype="dialog"
+    dialogMode="floating">
+
+    <content
+        jcr:primaryType="nt:unstructured"
+        sling:resourceType="granite/ui/components/coral/foundation/container">
+        <items jcr:primaryType="nt:unstructured">
+            <multiFieldContainer
+                jcr:primaryType="nt:unstructured"
+                sling:resourceType="granite/ui/components/coral/foundation/form/multifield"
+                fieldLabel="Audience RTE Variations"
+                composite="true">
+
+                <field jcr:primaryType="nt:unstructured"
+                       sling:resourceType="granite/ui/components/coral/foundation/container">
+                    <items jcr:primaryType="nt:unstructured">
+
+                        <!-- Rich Text Field (RTE) -->
+                        <rte
+                            jcr:primaryType="nt:unstructured"
+                            sling:resourceType="cq/gui/components/authoring/dialog/richtext"
+                            fieldLabel="Text"
+                            name="./rteText"/>
+
+                        <!-- Audience Tag Selector Field -->
+                        <audienceTags
+                            jcr:primaryType="nt:unstructured"
+                            sling:resourceType="cq/gui/components/coral/common/tagfield"
+                            fieldLabel="Audience Tag"
+                            name="./audienceTag"
+                            rootPath="/content/cq:tags/audience"
+                            multiple="false"
+                            allowAdd="false"/>
+                    </items>
+                </field>
+            </multiFieldContainer>
+        </items>
+    </content>
+</jcr:root>
+
+
+ <div data-component="multi-rte-audience">
+    <div data-sly-use.model="com.yourproject.core.models.MultiRTEAudienceModel">
+        <div data-sly-list="${model.rTEAudienceEntries}">
+            <div data-audience="${item.audienceTag}">
+                ${item.rteText @ context="html"}
+            </div>
+        </div>
+    </div>
+</div>
+
+
+document.addEventListener("DOMContentLoaded", function() {
+    const userAudience = getUserAudience(); // Assume a method to get user location as an audience tag
+    const rteAudienceVariations = document.querySelectorAll('[data-component="multi-rte-audience"] [data-audience]');
+
+    rteAudienceVariations.forEach(variation => {
+        const audience = variation.getAttribute('data-audience');
+        variation.style.display = audience === userAudience ? 'block' : 'none';
+    });
+});
+
+function getUserAudience() {
+    // Placeholder function for retrieving the logged-in user's location or audience tag
+    // Example: return "audience/location/europe";
+    return "audience/location/default"; // Implement logic to fetch user location
+}
