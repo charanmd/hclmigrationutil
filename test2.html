@@ -1,68 +1,159 @@
+Here’s a detailed technical solution document for implementing the **Multi-RTE-Audience Component** using AEM's frontend component management framework. This document includes a solution overview, component design, and a flow diagram to visualize the process.
 
-package com.yourproject.core.models;
+---
 
-import com.adobe.cq.wcm.core.components.models.Component;
-import org.apache.sling.api.resource.Resource;
-import org.apache.sling.models.annotations.DefaultInjectionStrategy;
-import org.apache.sling.models.annotations.Model;
-import org.apache.sling.models.annotations.injectorspecific.ChildResource;
-import org.apache.sling.models.annotations.injectorspecific.InjectionStrategy;
-import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+### **Technical Solution Documentation: Multi-RTE-Audience Component**
 
-import javax.inject.Inject;
-import java.util.ArrayList;
-import java.util.List;
+#### **Solution Overview**
 
-@Model(
-    adaptables = Resource.class,
-    adapters = { Component.class },
-    defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL
-)
-public class MultiRTEAudienceModel {
+The **Multi-RTE-Audience Component** enables authors to configure multiple sets of rich text (RTE) fields, each tagged with an audience label. Based on the logged-in user's location (stored as an audience tag in `localStorage`), the component dynamically displays content that matches the user's audience tag. If no matching audience tag is found, the component defaults to a generic display.
 
-    // Represent a single RTE-Audience entry
-    public static class RTEAudienceEntry {
-        private final String rteText;
-        private final String audienceTag;
+This solution leverages **AEM's JavaScript modular framework** using the `Component` and `registerComponent` methods, which initialize the component after the DOM is fully loaded.
 
-        public RTEAudienceEntry(String rteText, String audienceTag) {
-            this.rteText = rteText;
-            this.audienceTag = audienceTag;
-        }
+---
 
-        public String getRteText() {
-            return rteText;
-        }
+#### **Business Requirements**
 
-        public String getAudienceTag() {
-            return audienceTag;
-        }
+1. **Author Configuration**: Authors should be able to configure multiple RTE-audience pairs in AEM.
+2. **Dynamic Display**: When a user lands on the page, only the RTE text matching the user’s audience (as specified in `localStorage`) should be displayed.
+3. **Default Content**: If no audience matches, a default RTE text will be shown.
+4. **Adaptability**: The solution should be modular, using AEM’s JavaScript framework to simplify management and initialization.
+
+---
+
+#### **Technical Design**
+
+1. **Component Structure**:
+   - Component Path: `/apps/your-project/components/content/multiRTEAudienceComponent`
+   - JavaScript Path: `/apps/your-project/clientlibs/multiRTEAudienceComponent`
+
+2. **Front-End Component Logic**:
+   - **JavaScript Class**: `MultiRTEAudience` extends AEM’s `Component` class, registering itself with `registerComponent` to manage lifecycle and initialization.
+   - **Data Retrieval**: `userAudience` is retrieved from `localStorage`.
+   - **Conditional Display Logic**: Based on `userAudience`, the component displays only the RTE-audience pairs that match.
+
+3. **Dialog Configuration**:
+   - Uses AEM’s multifield to allow authors to add multiple RTE-audience pairs.
+   - Each entry has:
+     - **RTE Field**: Rich text content configured by the author.
+     - **Audience Field**: Dropdown selector linked to AEM Tags for audience selection.
+
+4. **Rendering Logic**:
+   - **Initialization**: The `constructor` method of the `MultiRTEAudience` class retrieves `userAudience` from `localStorage` and iterates over each RTE-audience pair in the component.
+   - **Display Filtering**: If an audience tag on a component entry matches `userAudience`, it is shown; otherwise, it remains hidden.
+
+---
+
+#### **Solution Flow Diagram**
+
+Below is the flow diagram that illustrates the component lifecycle and data flow:
+
+```plaintext
++---------------------------+
+|      Page Initialization   |
+|    (DOM Content Loaded)    |
++---------------------------+
+              |
+              v
++---------------------------+
+| Register Component       |
+| `MultiRTEAudience`       |
+| using `registerComponent`|
++---------------------------+
+              |
+              v
++---------------------------+
+| `MultiRTEAudience`       |
+| Constructor Executes     |
++---------------------------+
+              |
+              v
++---------------------------+
+| Retrieve `userAudience`   |
+| from `localStorage`       |
++---------------------------+
+              |
+              v
++---------------------------+
+| Query All RTE-Audience    |
+| Elements in Component     |
++---------------------------+
+              |
+              v
++---------------------------+
+| Filter RTE-Audience       |
+| Pairs Based on            |
+| `userAudience` Value      |
++---------------------------+
+              |
+              v
++---------------------------+
+| Display Matching RTE Text |
+| for User's Audience       |
++---------------------------+
+              |
+              v
++---------------------------+
+| Fallback to Default       |
+| Content if No Match Found |
++---------------------------+
+```
+
+---
+
+#### **Implementation Details**
+
+##### 1. **Component Code** (JavaScript)
+
+The JavaScript handles the main component logic, including initialization and filtering of audience-based content.
+
+```javascript
+import { Component, registerComponent } from 'js/component';
+
+const componentName = 'multi-rte-audience';
+
+class MultiRTEAudience extends Component {
+    constructor() {
+        super();
+        this.userAudience = this.getUserAudience(); // Fetch the user audience tag from localStorage
+        this.rteAudienceVariations = this.element.querySelectorAll('[data-audience]');
+
+        // Execute the filtering logic
+        this.filterAudienceVariations();
     }
 
-    // List of RTEAudienceEntry items from the multifield
-    @ChildResource(name = "multiFieldContainer", injectionStrategy = InjectionStrategy.OPTIONAL)
-    private Resource multiFieldContainer;
+    // Method to filter RTE-audience pairs based on user audience
+    filterAudienceVariations() {
+        this.rteAudienceVariations.forEach(variation => {
+            const audience = variation.getAttribute('data-audience');
+            variation.style.display = audience === this.userAudience ? 'block' : 'none';
+        });
+    }
 
-    public List<RTEAudienceEntry> getRTEAudienceEntries() {
-        List<RTEAudienceEntry> entries = new ArrayList<>();
-        if (multiFieldContainer != null) {
-            for (Resource item : multiFieldContainer.getChildren()) {
-                String rteText = item.getValueMap().get("rteText", String.class);
-                String audienceTag = item.getValueMap().get("audienceTag", String.class);
-                entries.add(new RTEAudienceEntry(rteText, audienceTag));
-            }
-        }
-        return entries;
+    // Method to retrieve the user audience from localStorage
+    getUserAudience() {
+        // Retrieve user audience value from localStorage
+        // Fallback to a default value if it doesn't exist
+        return localStorage.getItem("userAudience") || "audience/location/default";
     }
 }
 
+// Register the component with AEM's frontend component management system
+registerComponent(componentName, MultiRTEAudience);
+```
 
+##### 2. **Dialog Configuration**
 
-          <jcr:root
+The dialog allows authors to configure multiple RTE-audience pairs. Each pair consists of:
+   - **RTE Field** for the text.
+   - **Audience Tag Field** for selecting an audience from AEM Tags.
+
+Here’s a simplified XML for the dialog:
+```xml
+<jcr:root
     xmlns:sling="http://sling.apache.org/jcr/sling/1.0"
     xmlns:jcr="http://www.jcp.org/jcr/1.0"
     jcr:primaryType="cq:Dialog"
-    xtype="dialog"
     dialogMode="floating">
 
     <content
@@ -101,67 +192,32 @@ public class MultiRTEAudienceModel {
         </items>
     </content>
 </jcr:root>
+```
 
+---
 
- <div data-component="multi-rte-audience">
-    <div data-sly-use.model="com.yourproject.core.models.MultiRTEAudienceModel">
-        <div data-sly-list="${model.rTEAudienceEntries}">
-            <div data-audience="${item.audienceTag}">
-                ${item.rteText @ context="html"}
-            </div>
-        </div>
-    </div>
-</div>
+#### **Testing and Validation**
 
+1. **Authoring Validation**:
+   - Verify that authors can add multiple RTE-audience pairs in the dialog.
+   - Ensure that each RTE text can be associated with a specific audience tag from AEM Tags.
 
-document.addEventListener("DOMContentLoaded", function() {
-    const userAudience = getUserAudience(); // Assume a method to get user location as an audience tag
-    const rteAudienceVariations = document.querySelectorAll('[data-component="multi-rte-audience"] [data-audience]');
+2. **User Experience Validation**:
+   - Store a sample `userAudience` value in `localStorage` using browser developer tools:
+     ```javascript
+     localStorage.setItem("userAudience", "audience/location/europe");
+     ```
+   - Reload the page and ensure only matching RTE text for the specified audience is displayed.
 
-    rteAudienceVariations.forEach(variation => {
-        const audience = variation.getAttribute('data-audience');
-        variation.style.display = audience === userAudience ? 'block' : 'none';
-    });
-});
+3. **Default Fallback Validation**:
+   - Clear the `userAudience` value in `localStorage` to confirm the component displays the default content.
 
-function getUserAudience() {
-    // Placeholder function for retrieving the logged-in user's location or audience tag
-    // Example: return "audience/location/europe";
-    return "audience/location/default"; // Implement logic to fetch user location
-}
+---
 
+#### **Conclusion**
 
+This solution provides a modular, efficient way to deliver audience-specific content on AEM pages. By utilizing `localStorage` and AEM's component management framework, the solution achieves a dynamic, personalized experience without complex backend dependencies. 
 
-                            import { Component, registerComponent } from 'js/component';
+--- 
 
-const componentName = 'multi-rte-audience';
-
-class MultiRTEAudience extends Component {
-    constructor() {
-        super();
-        this.userAudience = this.getUserAudience(); // Fetch the user audience tag
-        this.rteAudienceVariations = this.element.querySelectorAll('[data-audience]');
-
-        // Execute the filtering logic
-        this.filterAudienceVariations();
-    }
-
-    // Method to filter RTE-audience pairs based on user audience
-    filterAudienceVariations() {
-        this.rteAudienceVariations.forEach(variation => {
-            const audience = variation.getAttribute('data-audience');
-            variation.style.display = audience === this.userAudience ? 'block' : 'none';
-        });
-    }
-
-    // Placeholder function for retrieving the logged-in user's location or audience tag
-    getUserAudience() {
-        // Example logic to determine user audience
-        // Implement actual logic to fetch user's location-based audience tag
-        return "audience/location/default"; 
-    }
-}
-
-// Register the component with AEM's frontend component management system
-registerComponent(componentName, MultiRTEAudience);
-
+This documentation should serve as a comprehensive guide for both technical and non-technical stakeholders, explaining the component's functionality, structure, and audience-based display logic.
