@@ -1,3 +1,4 @@
+
 package com.yourproject.core.models;
 
 import com.adobe.cq.wcm.core.components.models.Component;
@@ -128,3 +129,39 @@ function getUserAudience() {
     // Example: return "audience/location/europe";
     return "audience/location/default"; // Implement logic to fetch user location
 }
+
+
+
+                            import { Component, registerComponent } from 'js/component';
+
+const componentName = 'multi-rte-audience';
+
+class MultiRTEAudience extends Component {
+    constructor() {
+        super();
+        this.userAudience = this.getUserAudience(); // Fetch the user audience tag
+        this.rteAudienceVariations = this.element.querySelectorAll('[data-audience]');
+
+        // Execute the filtering logic
+        this.filterAudienceVariations();
+    }
+
+    // Method to filter RTE-audience pairs based on user audience
+    filterAudienceVariations() {
+        this.rteAudienceVariations.forEach(variation => {
+            const audience = variation.getAttribute('data-audience');
+            variation.style.display = audience === this.userAudience ? 'block' : 'none';
+        });
+    }
+
+    // Placeholder function for retrieving the logged-in user's location or audience tag
+    getUserAudience() {
+        // Example logic to determine user audience
+        // Implement actual logic to fetch user's location-based audience tag
+        return "audience/location/default"; 
+    }
+}
+
+// Register the component with AEM's frontend component management system
+registerComponent(componentName, MultiRTEAudience);
+
