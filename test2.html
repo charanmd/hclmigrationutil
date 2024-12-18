@@ -1,99 +1,131 @@
-To ensure that the **Table of Contents (TOC)** is **automatically added** inside the Accordion component **above all Accordion Items**, as shown in the image, we need to slightly update the previous implementation.
+If **Accordion Items** are populated dynamically from **Content Fragments** and an **author-provided parent path**, along with **Audience Tags for Personalization**, the Table of Contents (TOC) will auto-generate by reading Content Fragments under the specified path. Personalization will ensure content is filtered based on audience tags.
 
-Here’s the updated solution:
-
----
-
-## **Updated Implementation Overview**
-1. Modify the **Accordion Parent Component** to dynamically include the TOC.
-2. Ensure the TOC is rendered **above all Accordion Items** inside the Accordion container.
-3. The logic will dynamically identify all Accordion Items added to the page using a query.
+Below is the implementation strategy to handle this requirement:
 
 ---
 
-### **1. HTL - Updated Accordion Component**
+## **Implementation Steps**
 
-In the **Accordion Parent Component**, render the Table of Contents before rendering the Accordion Items.
+1. **Parent Path Configuration**:
+   - Authors provide a parent path to fetch all Content Fragments.
+   - The path is stored as a dialog property in the Accordion component.
 
-**`accordion.html`**:
-```html
-<!-- Use Sling Model for TOC -->
-<sly data-sly-use.model="com.yourproject.models.AccordionTOCModel"/>
+2. **Content Fragments Retrieval**:
+   - Use a Sling Model to query and fetch all Content Fragments under the parent path.
+   - Apply filtering logic based on **Audience Tags**.
 
-<!-- Accordion Wrapper -->
-<div class="accordion">
+3. **TOC Rendering**:
+   - Dynamically generate the Table of Contents above the Accordion Items in the HTL template.
 
-    <!-- Table of Contents Above Accordion Items -->
-    <div id="table-of-contents" class="table-of-contents">
-        <h2>Table of Contents</h2>
-        <ul>
-            <sly data-sly-list.item="${model.tocItems}">
-                <li>
-                    <a href="#${item['title'].split(',')[1]}">
-                        ${item['title'].split(',')[0]}
-                    </a>
-                </li>
-            </sly>
-        </ul>
-    </div>
+4. **Personalization**:
+   - Filter Content Fragments using **Audience Tags**.
 
-    <!-- Render Accordion Items -->
-    <sly data-sly-list.item="${resource.getChildren}">
-        <sly data-sly-resource="${item.path @ resourceType='yourproject/components/accordionitem'}"></sly>
-    </sly>
-</div>
+---
 
-<!-- Include JavaScript -->
-<script src="/etc.clientlibs/yourproject/components/accordion/clientlibs/site.min.js"></script>
+## **1. Accordion Component Configuration**
+
+Update the Accordion Component's **dialog** to allow authors to set the parent path and audience tags.
+
+**`_cq_dialog.xml`**:
+```xml
+<jcr:root xmlns:jcr="http://www.jcp.org/jcr/1.0"
+          xmlns:nt="http://www.jcp.org/jcr/nt/1.0"
+          jcr:primaryType="nt:unstructured"
+          sling:resourceType="cq/gui/components/authoring/dialog">
+
+    <content jcr:primaryType="nt:unstructured"
+             sling:resourceType="granite/ui/components/coral/foundation/container">
+        <items jcr:primaryType="nt:unstructured">
+
+            <!-- Parent Path Field -->
+            <parentPath
+                jcr:primaryType="nt:unstructured"
+                sling:resourceType="granite/ui/components/coral/foundation/form/pathfield"
+                fieldLabel="Parent Path"
+                name="./parentPath"
+                required="{Boolean}true"/>
+
+            <!-- Audience Tags -->
+            <audienceTags
+                jcr:primaryType="nt:unstructured"
+                sling:resourceType="cq/gui/components/common/tagfield"
+                fieldLabel="Audience Tags"
+                name="./audienceTags"
+                required="{Boolean}false"/>
+
+        </items>
+    </content>
+</jcr:root>
 ```
 
 ---
 
-### **2. Java Logic - Sling Model for Dynamic TOC**
+## **2. Sling Model for Content Fragments Retrieval**
 
-The **Sling Model** remains similar but dynamically identifies all Accordion Items within the Accordion.
+The Sling Model will:
+- Fetch **Content Fragments** under the configured parent path.
+- Filter results based on **Audience Tags**.
+- Prepare data for rendering TOC and Accordion Items.
 
 **`AccordionTOCModel.java`**:
 ```java
 package com.yourproject.models;
 
+import com.adobe.cq.dam.cfm.ContentFragment;
+import com.adobe.cq.dam.cfm.ContentFragmentManager;
+import com.adobe.cq.dam.cfm.FragmentData;
 import com.adobe.cq.sightly.WCMUsePojo;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-
-import javax.jcr.Node;
-import javax.jcr.RepositoryException;
+import javax.inject.Inject;
 import javax.jcr.Session;
-import javax.jcr.query.Query;
-import javax.jcr.query.QueryManager;
-import javax.jcr.query.QueryResult;
-import javax.jcr.query.Row;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class AccordionTOCModel extends WCMUsePojo {
+
+    @Inject
+    private String parentPath;
+
+    @Inject
+    private String[] audienceTags;
 
     private List<Map<String, String>> tocItems = new ArrayList<>();
 
     @Override
     public void activate() throws Exception {
         ResourceResolver resolver = getResourceResolver();
-        Session session = resolver.adaptTo(Session.class);
+        ContentFragmentManager cfm = resolver.adaptTo(ContentFragmentManager.class);
 
-        String currentPath = getResource().getPath();
-        String queryStatement = "SELECT * FROM [nt:unstructured] AS item "
-                + "WHERE ISCHILDNODE(item, '" + currentPath + "') "
-                + "AND item.[sling:resourceType] = 'yourproject/components/accordionitem'";
+        if (parentPath != null && cfm != null) {
+            // Retrieve Content Fragments under the parent path
+            Iterator<Resource> resources = resolver.getResource(parentPath).listChildren();
 
-        QueryManager queryManager = session.getWorkspace().getQueryManager();
-        Query query = queryManager.createQuery(queryStatement, Query.JCR_SQL2);
-        QueryResult result = query.execute();
+            while (resources.hasNext()) {
+                Resource resource = resources.next();
+                ContentFragment cf = resource.adaptTo(ContentFragment.class);
 
-        for (Row row : result.getRows()) {
-            Node node = row.getNode();
-            String title = node.hasProperty("title") ? node.getProperty("title").getString() : "Untitled";
-            String id = title.toLowerCase().replace(" ", "-");
-            tocItems.add(Collections.singletonMap("title", title + "," + id));
+                if (cf != null && matchesAudienceTags(cf)) {
+                    String title = cf.getElement("title").getContent(); // CF Element: Title
+                    String id = title.toLowerCase().replace(" ", "-");
+
+                    // Add TOC Entry
+                    Map<String, String> tocItem = new HashMap<>();
+                    tocItem.put("title", title);
+                    tocItem.put("id", id);
+                    tocItems.add(tocItem);
+                }
+            }
         }
+    }
+
+    private boolean matchesAudienceTags(ContentFragment cf) {
+        if (audienceTags == null || audienceTags.length == 0) {
+            return true; // No filtering if no tags are set
+        }
+        FragmentData tags = cf.getElement("cq:tags");
+        return tags != null && Arrays.stream(audienceTags)
+            .anyMatch(tag -> Arrays.asList(tags.getValue()).contains(tag));
     }
 
     public List<Map<String, String>> getTocItems() {
@@ -104,33 +136,55 @@ public class AccordionTOCModel extends WCMUsePojo {
 
 ---
 
-### **3. HTL for Accordion Item IDs**
+## **3. HTL Integration**
 
-Ensure each Accordion Item has a unique ID based on its title.
+Render the Table of Contents above the Accordion Items dynamically.
 
-**`accordionitem.html`**:
+**`accordion.html`**:
 ```html
-<div class="accordion-item" id="${properties.title @ context='attribute'}">
-    <h3 class="accordion-title">${properties.title}</h3>
-    <div class="accordion-content">
-        <sly data-sly-include="body.html"></sly>
+<!-- Use Sling Model -->
+<sly data-sly-use.model="com.yourproject.models.AccordionTOCModel"/>
+
+<!-- Accordion Container -->
+<div class="accordion">
+
+    <!-- Table of Contents -->
+    <div id="table-of-contents" class="table-of-contents">
+        <h2>Table of Contents</h2>
+        <ul>
+            <sly data-sly-list.item="${model.tocItems}">
+                <li>
+                    <a href="#${item.id}">${item.title}</a>
+                </li>
+            </sly>
+        </ul>
     </div>
+
+    <!-- Accordion Items from Content Fragments -->
+    <sly data-sly-list.item="${model.tocItems}">
+        <div class="accordion-item" id="${item.id}">
+            <h3 class="accordion-title">${item.title}</h3>
+            <div class="accordion-content">
+                <p>Content for ${item.title} goes here...</p>
+            </div>
+        </div>
+    </sly>
 </div>
 ```
 
 ---
 
-### **4. JavaScript for Smooth Scrolling**
+## **4. JavaScript for Smooth Scrolling**
 
-Add JavaScript to enable smooth scrolling when a TOC link is clicked.
+Enable smooth scrolling when clicking on TOC links.
 
-**`toc-generator.js`**:
+**`smooth-scroll.js`**:
 ```javascript
 document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("#table-of-contents a").forEach(link => {
         link.addEventListener("click", function (e) {
             e.preventDefault();
-            const target = document.querySelector(link.getAttribute("href"));
+            const target = document.getElementById(link.getAttribute("href").substring(1));
             if (target) {
                 target.scrollIntoView({ behavior: "smooth", block: "start" });
             }
@@ -141,27 +195,21 @@ document.addEventListener("DOMContentLoaded", function () {
 
 ---
 
-### **5. CSS Styling for TOC**
+## **5. Styling the TOC**
 
-Add styling for the Table of Contents for better appearance.
+Style the Table of Contents for clear visibility.
 
 **`style.css`**:
 ```css
 .table-of-contents {
     margin-bottom: 20px;
     padding: 10px;
-    background: #f8f9fa;
+    background-color: #f8f9fa;
     border: 1px solid #ddd;
 }
 
-.table-of-contents h2 {
-    margin: 0 0 10px;
-    font-size: 18px;
-}
-
 .table-of-contents ul {
-    list-style-type: none;
-    margin: 0;
+    list-style: none;
     padding: 0;
 }
 
@@ -181,31 +229,29 @@ Add styling for the Table of Contents for better appearance.
 
 ---
 
-### **How It Works**
+## **How It Works**
 
-1. **Accordion Parent Component**:
-   - The TOC is added at the top of the Accordion container.
-   - It dynamically lists all Accordion Items (using the Sling Model query).
+1. **Author Configuration**:
+   - Authors configure the **parent path** and optional **audience tags** in the dialog.
 
 2. **Sling Model**:
-   - Queries all child nodes with `sling:resourceType` as `accordionitem`.
-   - Extracts the titles of Accordion Items and assigns unique IDs.
+   - Retrieves all Content Fragments under the parent path.
+   - Filters Content Fragments based on the provided audience tags.
 
-3. **Accordion Items**:
-   - Each item has an `id` based on its title, allowing the TOC links to scroll to their respective sections.
+3. **HTL**:
+   - Renders the Table of Contents dynamically above the Accordion Items.
+   - Outputs each Content Fragment as an Accordion Item.
 
 4. **JavaScript**:
-   - Enables smooth scrolling for TOC links.
-
-5. **Styling**:
-   - Ensures the TOC appears clean and visually distinct.
+   - Enables smooth scrolling when TOC links are clicked.
 
 ---
 
-### **Final Output**
+## **Final Output**
 
-When the Accordion component is added to any page:
-- A **Table of Contents** is automatically rendered at the top of the Accordion, listing all Accordion Item titles.
-- Clicking on a TOC entry scrolls smoothly to the corresponding Accordion Item section.
+1. The **Table of Contents** is automatically rendered above all Accordion Items.
+2. Content Fragments are dynamically fetched and displayed as Accordion Items.
+3. Audience tags ensure **personalized filtering** of Content Fragments.
+4. Smooth navigation allows users to scroll to the corresponding Accordion Item.
 
-This solution is clean, dynamic, and works seamlessly for any Accordion added to a page. Let me know if you need further refinements! 🚀
+This solution is dynamic, scalable, and meets the requirement for both content generation and personalization. Let me know if further refinements are needed! 🚀
