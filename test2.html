@@ -1,223 +1,152 @@
-Here’s a detailed technical solution document for implementing the **Multi-RTE-Audience Component** using AEM's frontend component management framework. This document includes a solution overview, component design, and a flow diagram to visualize the process.
+To **auto-generate a Table of Contents (TOC)** for an AEM page by reading **Accordion Items** dynamically using a query, you can leverage the **JCR query mechanism** (using Sling models or Sightly Use-API) combined with **HTL** to render the TOC. Here’s a breakdown of ideas and implementation strategies:
 
 ---
 
-### **Technical Solution Documentation: Multi-RTE-Audience Component**
+## **1. Using Query to Retrieve Accordion Items**
 
-#### **Solution Overview**
+You can use the **`QueryBuilder`** API or **JCR SQL2** query to find child nodes representing Accordion Items under the Accordion parent node.
 
-The **Multi-RTE-Audience Component** enables authors to configure multiple sets of rich text (RTE) fields, each tagged with an audience label. Based on the logged-in user's location (stored as an audience tag in `localStorage`), the component dynamically displays content that matches the user's audience tag. If no matching audience tag is found, the component defaults to a generic display.
-
-This solution leverages **AEM's JavaScript modular framework** using the `Component` and `registerComponent` methods, which initialize the component after the DOM is fully loaded.
-
----
-
-#### **Business Requirements**
-
-1. **Author Configuration**: Authors should be able to configure multiple RTE-audience pairs in AEM.
-2. **Dynamic Display**: When a user lands on the page, only the RTE text matching the user’s audience (as specified in `localStorage`) should be displayed.
-3. **Default Content**: If no audience matches, a default RTE text will be shown.
-4. **Adaptability**: The solution should be modular, using AEM’s JavaScript framework to simplify management and initialization.
-
----
-
-#### **Technical Design**
-
-1. **Component Structure**:
-   - Component Path: `/apps/your-project/components/content/multiRTEAudienceComponent`
-   - JavaScript Path: `/apps/your-project/clientlibs/multiRTEAudienceComponent`
-
-2. **Front-End Component Logic**:
-   - **JavaScript Class**: `MultiRTEAudience` extends AEM’s `Component` class, registering itself with `registerComponent` to manage lifecycle and initialization.
-   - **Data Retrieval**: `userAudience` is retrieved from `localStorage`.
-   - **Conditional Display Logic**: Based on `userAudience`, the component displays only the RTE-audience pairs that match.
-
-3. **Dialog Configuration**:
-   - Uses AEM’s multifield to allow authors to add multiple RTE-audience pairs.
-   - Each entry has:
-     - **RTE Field**: Rich text content configured by the author.
-     - **Audience Field**: Dropdown selector linked to AEM Tags for audience selection.
-
-4. **Rendering Logic**:
-   - **Initialization**: The `constructor` method of the `MultiRTEAudience` class retrieves `userAudience` from `localStorage` and iterates over each RTE-audience pair in the component.
-   - **Display Filtering**: If an audience tag on a component entry matches `userAudience`, it is shown; otherwise, it remains hidden.
-
----
-
-#### **Solution Flow Diagram**
-
-Below is the flow diagram that illustrates the component lifecycle and data flow:
-
-```plaintext
-+---------------------------+
-|      Page Initialization   |
-|    (DOM Content Loaded)    |
-+---------------------------+
-              |
-              v
-+---------------------------+
-| Register Component       |
-| `MultiRTEAudience`       |
-| using `registerComponent`|
-+---------------------------+
-              |
-              v
-+---------------------------+
-| `MultiRTEAudience`       |
-| Constructor Executes     |
-+---------------------------+
-              |
-              v
-+---------------------------+
-| Retrieve `userAudience`   |
-| from `localStorage`       |
-+---------------------------+
-              |
-              v
-+---------------------------+
-| Query All RTE-Audience    |
-| Elements in Component     |
-+---------------------------+
-              |
-              v
-+---------------------------+
-| Filter RTE-Audience       |
-| Pairs Based on            |
-| `userAudience` Value      |
-+---------------------------+
-              |
-              v
-+---------------------------+
-| Display Matching RTE Text |
-| for User's Audience       |
-+---------------------------+
-              |
-              v
-+---------------------------+
-| Fallback to Default       |
-| Content if No Match Found |
-+---------------------------+
+### **JCR SQL2 Query Example**
+Assuming the Accordion Items have a resource type `yourproject/components/accordionitem`, the query could look like this:
+```sql
+SELECT * FROM [nt:unstructured] AS item
+WHERE ISDESCENDANTNODE(item, '/content/mysite/page/jcr:content') 
+AND item.[sling:resourceType] = 'yourproject/components/accordionitem'
 ```
 
 ---
 
-#### **Implementation Details**
+## **2. Implementation with a Sling Model**
 
-##### 1. **Component Code** (JavaScript)
+A Sling Model can execute the query and pass the data to the HTL template for rendering.
 
-The JavaScript handles the main component logic, including initialization and filtering of audience-based content.
+### **Sling Model Code**
 
-```javascript
-import { Component, registerComponent } from 'js/component';
+Create a Sling Model to fetch all Accordion Items under a specific parent node:
 
-const componentName = 'multi-rte-audience';
+**`AccordionTOCModel.java`**:
+```java
+package com.yourproject.models;
 
-class MultiRTEAudience extends Component {
-    constructor() {
-        super();
-        this.userAudience = this.getUserAudience(); // Fetch the user audience tag from localStorage
-        this.rteAudienceVariations = this.element.querySelectorAll('[data-audience]');
+import com.adobe.cq.sightly.WCMUsePojo;
+import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.wrappers.ValueMapDecorator;
 
-        // Execute the filtering logic
-        this.filterAudienceVariations();
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+import javax.jcr.query.Query;
+import javax.jcr.query.QueryManager;
+import javax.jcr.query.QueryResult;
+import javax.jcr.query.Row;
+import java.util.*;
+
+public class AccordionTOCModel extends WCMUsePojo {
+
+    private List<Map<String, String>> tocItems = new ArrayList<>();
+
+    @Override
+    public void activate() throws Exception {
+        ResourceResolver resolver = getResourceResolver();
+        Session session = resolver.adaptTo(Session.class);
+
+        String currentPagePath = getCurrentPage().getPath();
+        String queryStatement = "SELECT * FROM [nt:unstructured] AS item "
+                + "WHERE ISDESCENDANTNODE(item, '" + currentPagePath + "') "
+                + "AND item.[sling:resourceType] = 'yourproject/components/accordionitem'";
+
+        QueryManager queryManager = session.getWorkspace().getQueryManager();
+        Query query = queryManager.createQuery(queryStatement, Query.JCR_SQL2);
+        QueryResult result = query.execute();
+
+        // Parse results
+        for (Row row : result.getRows()) {
+            Node node = row.getNode();
+            String title = node.hasProperty("title") ? node.getProperty("title").getString() : "Untitled";
+            String id = node.getPath().replace("/", "_"); // Generate unique ID
+            tocItems.add(Collections.singletonMap("title", title + "," + id));
+        }
     }
 
-    // Method to filter RTE-audience pairs based on user audience
-    filterAudienceVariations() {
-        this.rteAudienceVariations.forEach(variation => {
-            const audience = variation.getAttribute('data-audience');
-            variation.style.display = audience === this.userAudience ? 'block' : 'none';
-        });
-    }
-
-    // Method to retrieve the user audience from localStorage
-    getUserAudience() {
-        // Retrieve user audience value from localStorage
-        // Fallback to a default value if it doesn't exist
-        return localStorage.getItem("userAudience") || "audience/location/default";
+    public List<Map<String, String>> getTocItems() {
+        return tocItems;
     }
 }
-
-// Register the component with AEM's frontend component management system
-registerComponent(componentName, MultiRTEAudience);
-```
-
-##### 2. **Dialog Configuration**
-
-The dialog allows authors to configure multiple RTE-audience pairs. Each pair consists of:
-   - **RTE Field** for the text.
-   - **Audience Tag Field** for selecting an audience from AEM Tags.
-
-Here’s a simplified XML for the dialog:
-```xml
-<jcr:root
-    xmlns:sling="http://sling.apache.org/jcr/sling/1.0"
-    xmlns:jcr="http://www.jcp.org/jcr/1.0"
-    jcr:primaryType="cq:Dialog"
-    dialogMode="floating">
-
-    <content
-        jcr:primaryType="nt:unstructured"
-        sling:resourceType="granite/ui/components/coral/foundation/container">
-        <items jcr:primaryType="nt:unstructured">
-            <multiFieldContainer
-                jcr:primaryType="nt:unstructured"
-                sling:resourceType="granite/ui/components/coral/foundation/form/multifield"
-                fieldLabel="Audience RTE Variations"
-                composite="true">
-
-                <field jcr:primaryType="nt:unstructured"
-                       sling:resourceType="granite/ui/components/coral/foundation/container">
-                    <items jcr:primaryType="nt:unstructured">
-
-                        <!-- Rich Text Field (RTE) -->
-                        <rte
-                            jcr:primaryType="nt:unstructured"
-                            sling:resourceType="cq/gui/components/authoring/dialog/richtext"
-                            fieldLabel="Text"
-                            name="./rteText"/>
-
-                        <!-- Audience Tag Selector Field -->
-                        <audienceTags
-                            jcr:primaryType="nt:unstructured"
-                            sling:resourceType="cq/gui/components/coral/common/tagfield"
-                            fieldLabel="Audience Tag"
-                            name="./audienceTag"
-                            rootPath="/content/cq:tags/audience"
-                            multiple="false"
-                            allowAdd="false"/>
-                    </items>
-                </field>
-            </multiFieldContainer>
-        </items>
-    </content>
-</jcr:root>
 ```
 
 ---
 
-#### **Testing and Validation**
+## **3. HTL Integration**
 
-1. **Authoring Validation**:
-   - Verify that authors can add multiple RTE-audience pairs in the dialog.
-   - Ensure that each RTE text can be associated with a specific audience tag from AEM Tags.
+Use the **AccordionTOCModel** in your **Accordion HTL** to render the dynamic Table of Contents.
 
-2. **User Experience Validation**:
-   - Store a sample `userAudience` value in `localStorage` using browser developer tools:
-     ```javascript
-     localStorage.setItem("userAudience", "audience/location/europe");
-     ```
-   - Reload the page and ensure only matching RTE text for the specified audience is displayed.
+**`accordion.html`**:
+```html
+<!-- Use Sling Model -->
+<sly data-sly-use.model="com.yourproject.models.AccordionTOCModel"/>
 
-3. **Default Fallback Validation**:
-   - Clear the `userAudience` value in `localStorage` to confirm the component displays the default content.
+<!-- Table of Contents -->
+<div id="table-of-contents" class="table-of-contents">
+    <h2>Table of Contents</h2>
+    <ul>
+        <sly data-sly-list.item="${model.tocItems}">
+            <li>
+                <a href="#${item['title'].split(',')[1]}">
+                    ${item['title'].split(',')[0]}
+                </a>
+            </li>
+        </sly>
+    </ul>
+</div>
+
+<!-- Accordion Sections -->
+<div class="accordion">
+    <sly data-sly-list.item="${resource.getChildren}">
+        <div class="accordion-item" id="${item.name}">
+            <h3 class="accordion-title">${item.title}</h3>
+            <div class="accordion-content">
+                <sly data-sly-include="body.html"></sly>
+            </div>
+        </div>
+    </sly>
+</div>
+```
 
 ---
 
-#### **Conclusion**
+## **4. Explanation of the Solution**
 
-This solution provides a modular, efficient way to deliver audience-specific content on AEM pages. By utilizing `localStorage` and AEM's component management framework, the solution achieves a dynamic, personalized experience without complex backend dependencies. 
+1. **JCR Query**:
+   - Retrieves all nodes of type `nt:unstructured` under the page content path.
+   - Filters nodes with `sling:resourceType` equal to `yourproject/components/accordionitem`.
 
---- 
+2. **Sling Model**:
+   - Executes the JCR SQL2 query and processes the results.
+   - Extracts the `title` and generates unique IDs based on the node path.
+   - Provides a list of TOC items as `Map` objects with `title` and `id`.
 
-This documentation should serve as a comprehensive guide for both technical and non-technical stakeholders, explaining the component's functionality, structure, and audience-based display logic.
+3. **HTL Rendering**:
+   - Uses the `AccordionTOCModel` to iterate over the TOC items.
+   - Outputs links that point to corresponding Accordion sections via `id`.
+
+4. **Accordion Section IDs**:
+   - IDs for each Accordion Item are derived from the node path to ensure uniqueness.
+
+---
+
+## **5. Advantages of This Approach**
+
+1. **Dynamic Querying**: The TOC automatically updates as Accordion Items are added or removed.
+2. **Scalable**: Supports pages with multiple Accordion Items.
+3. **Separation of Concerns**: Business logic is encapsulated in the Sling Model, and HTL only handles rendering.
+
+---
+
+## **6. Next Steps**
+
+1. Enhance error handling in the Sling Model for edge cases.
+2. Add smooth scroll behavior in JavaScript for better navigation.
+3. Optimize query performance by restricting depth or limiting results.
+
+Let me know if you need further assistance refining this solution! 🚀
